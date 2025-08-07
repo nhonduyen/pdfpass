@@ -1,10 +1,4 @@
-﻿using NPOI.HPSF;
-using OfficeOpenXml;
-using System;
-using System.Data;
-using System.Windows.Forms;
-
-namespace PassPdf
+﻿namespace PassPdf
 {
     public partial class Form1 : Form
     {
@@ -48,28 +42,69 @@ namespace PassPdf
         {
             try
             {
+                // Check if file exists first
+                if (!File.Exists(txtFile.Text))
+                {
+                    MessageBox.Show("File not found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Check if file is read-only
+                var fileAttributes = File.GetAttributes(txtFile.Text);
+                if (fileAttributes.HasFlag(FileAttributes.ReadOnly))
+                {
+                    MessageBox.Show("File is read-only. Please remove read-only attribute.", "Error",
+                                   MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
                 var excelManager = new ExcelManager(txtFile.Text);
                 var employeeNames = excelManager.GetEmployeeNames();
                 txtResult.Text = string.Join(Environment.NewLine, employeeNames);
 
-                foreach ( var employee in employeeNames )
+                int processedCount = 0;
+                foreach (var employee in employeeNames)
                 {
-                    // Populate the combo box with employee names
-                    excelManager.FillEmployeeName(employee);
-                    var empName = excelManager.ConvertVietnameseName(employee);
-                    string pdfPath = Path.Combine(txtExportFolder.Text, $"{empName }.pdf");
-                    excelManager.PrintExcelSheetToPdf(txtFile.Text, pdfPath);
+                    try
+                    {
+                        var pdfPath = Path.Combine(txtExportFolder.Text, $"{employee}.pdf");
+                        excelManager.FillEmployeeName(employee);
+                        excelManager.PrintExcelSheetToPdf(txtFile.Text, pdfPath);
+                        processedCount++;
+                        txtResult.Text += Environment.NewLine + pdfPath;
+                    }
+                    catch (Exception employeeEx)
+                    {
+                        var result = MessageBox.Show(
+                            $"Error processing employee '{employee}': {employeeEx.Message}\n\nDo you want to continue with the next employee?",
+                            "Error",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Warning);
+
+                        if (result == DialogResult.No)
+                            break;
+                    }
                 }
+
+                MessageBox.Show($"Export completed! Processed {processedCount} out of {employeeNames.Count} employees.",
+                               "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error reading Excel file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Error processing Excel file: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}",
+                               "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void btnSetPass_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            txtExportFolder.Text = @"D:\pdf";
+            txtFile.Text = @"D:\pdf\1.xlsm";
         }
     }
 }

@@ -3,13 +3,13 @@ using System.Text;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using NPOI.HSSF.UserModel;
-using iText.Kernel.Pdf;
 using Path = System.IO.Path;
 using System.Runtime.InteropServices;
 
 using Excel = Microsoft.Office.Interop.Excel;
 using IWorkbook = NPOI.SS.UserModel.IWorkbook;
 using System.Globalization;
+using iText.Kernel.Pdf;
 
 namespace PassPdf
 {
@@ -36,6 +36,7 @@ namespace PassPdf
                 }
 
                 ISheet sheet = workbook.GetSheet("Payslip-Gross");
+                ISheet sheetPayroll = workbook.GetSheet("Payroll");
                 if (sheet == null)
                     throw new Exception("Payslip-Gross sheet not found");
 
@@ -66,7 +67,9 @@ namespace PassPdf
 
                     // Only evaluate formulas in the current sheet that don't have external references
                     EvaluateSafeFormulas(evaluator, sheet);
+                    EvaluateSafeFormulas(evaluator, sheetPayroll);
                     sheet.ForceFormulaRecalculation = true;
+                    sheetPayroll.ForceFormulaRecalculation = true;
                 }
                 catch (Exception evalEx)
                 {
@@ -85,38 +88,6 @@ namespace PassPdf
             }
         }
 
-        private void EvaluateSafeFormulas(IFormulaEvaluator evaluator, ISheet sheet)
-        {
-            for (int rowIndex = 0; rowIndex <= sheet.LastRowNum; rowIndex++)
-            {
-                IRow row = sheet.GetRow(rowIndex);
-                if (row == null) continue;
-
-                for (int cellIndex = 0; cellIndex < row.LastCellNum; cellIndex++)
-                {
-                    ICell cell = row.GetCell(cellIndex);
-                    if (cell == null || cell.CellType != CellType.Formula) continue;
-
-                    string formula = cell.CellFormula;
-
-                    // Skip formulas with external references
-                    if (formula.Contains("[") && formula.Contains("]"))
-                    {
-                        continue; // Skip external references
-                    }
-
-                    try
-                    {
-                        evaluator.Evaluate(cell);
-                    }
-                    catch
-                    {
-                        // Skip problematic formulas
-                        continue;
-                    }
-                }
-            }
-        }
 
         public string ConvertVietnameseName(string name)
         {
@@ -177,99 +148,91 @@ namespace PassPdf
             }
         }
 
-        public DataTable ReadExcelFile(string sheetName = null)
+        private void EvaluateSafeFormulas(IFormulaEvaluator evaluator, ISheet sheet)
         {
-            try
+            for (int rowIndex = 0; rowIndex <= sheet.LastRowNum; rowIndex++)
             {
-                using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                IRow row = sheet.GetRow(rowIndex);
+                if (row == null) continue;
+
+                for (int cellIndex = 0; cellIndex < row.LastCellNum; cellIndex++)
                 {
-                    IWorkbook workbook;
+                    ICell cell = row.GetCell(cellIndex);
+                    if (cell == null || cell.CellType != CellType.Formula) continue;
 
-                    // Check file extension to use the correct reader
-                    if (Path.GetExtension(filePath).ToLower() == ".xls")
-                        workbook = new HSSFWorkbook(stream);
-                    else
-                        workbook = new XSSFWorkbook(stream);
+                    string formula = cell.CellFormula;
 
-                    // Get the specified worksheet, or the first one if no name is provided
-                    ISheet sheet = string.IsNullOrEmpty(sheetName)
-                        ? workbook.GetSheetAt(0)
-                        : workbook.GetSheet(sheetName);
-
-                    if (sheet == null)
-                        throw new Exception("Worksheet not found");
-
-                    DataTable dt = new DataTable();
-                    IRow headerRow = sheet.GetRow(0);
-                    int colCount = headerRow.LastCellNum;
-
-                    // Create columns from header row
-                    for (int i = 0; i < colCount; i++)
+                    // Skip formulas with external references
+                    if (formula.Contains("[") && formula.Contains("]"))
                     {
-                        ICell cell = headerRow.GetCell(i);
-                        string columnName = cell?.ToString() ?? $"Column{i + 1}";
-                        dt.Columns.Add(columnName);
+                        continue; // Skip external references
                     }
 
-                    // Read data rows
-                    for (int i = 1; i <= sheet.LastRowNum; i++)
+                    try
                     {
-                        IRow row = sheet.GetRow(i);
-                        if (row == null) continue;
-
-                        DataRow dataRow = dt.NewRow();
-                        for (int j = 0; j < colCount; j++)
-                        {
-                            ICell cell = row.GetCell(j);
-                            dataRow[j] = cell?.ToString() ?? string.Empty;
-                        }
-                        dt.Rows.Add(dataRow);
+                        evaluator.Evaluate(cell);
                     }
-
-                    return dt;
+                    catch
+                    {
+                        // Skip problematic formulas
+                        continue;
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Error reading Excel file: {ex.Message}");
             }
         }
 
         public void PrintExcelSheetToPdf(string excelPath, string outputPdfPath)
         {
             string sheetName = "Payslip-Gross";
-            var excelApp = new Excel.Application();
+            Excel.Application excelApp = null;
             Excel.Workbook workbook = null;
 
             try
             {
-                excelApp.Visible = false;
-                excelApp.ScreenUpdating = false;
-                excelApp.DisplayAlerts = false;
+                excelApp = new Excel.Application
+                {
+                    Visible = false,
+                    ScreenUpdating = false,
+                    DisplayAlerts = false
+                };
 
-                workbook = excelApp.Workbooks.Open(excelPath);
+                workbook = excelApp.Workbooks.Open(excelPath, ReadOnly: true);
 
-                // Find the target sheet
                 Excel.Worksheet worksheet = workbook.Sheets.Cast<Excel.Worksheet>()
                     .FirstOrDefault(ws => ws.Name == sheetName);
 
                 if (worksheet == null)
                     throw new Exception($"Sheet '{sheetName}' not found.");
 
-                // Hide all sheets except the one to print
+                // Hide all other sheets
                 foreach (Excel.Worksheet ws in workbook.Sheets)
                 {
                     ws.Visible = (ws == worksheet) ? Excel.XlSheetVisibility.xlSheetVisible : Excel.XlSheetVisibility.xlSheetVeryHidden;
                 }
 
-                // Print that single sheet to PDF
                 worksheet.Select(Type.Missing);
+
+                // Export without specifying page range
                 workbook.ExportAsFixedFormat(
                     Excel.XlFixedFormatType.xlTypePDF,
                     outputPdfPath,
                     Excel.XlFixedFormatQuality.xlQualityStandard,
-                    true, true, 1, 1, false, Type.Missing
+                    IncludeDocProperties: true,
+                    IgnorePrintAreas: false,
+                    From: Type.Missing,
+                    To: Type.Missing,
+                    OpenAfterPublish: false,
+                    Type.Missing
                 );
+
+                // Optional delay for Excel to finish writing the file
+                System.Threading.Thread.Sleep(1000);
+
+                // Verify output
+                if (!File.Exists(outputPdfPath))
+                {
+                    throw new Exception("Export failed. PDF file was not created.");
+                }
             }
             finally
             {
@@ -278,12 +241,17 @@ namespace PassPdf
                     workbook.Close(false);
                     Marshal.ReleaseComObject(workbook);
                 }
-                excelApp.Quit();
-                Marshal.ReleaseComObject(excelApp);
+                if (excelApp != null)
+                {
+                    excelApp.Quit();
+                    Marshal.ReleaseComObject(excelApp);
+                }
+
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
             }
         }
+
 
         public void ProtectPdfWithPassword(string pdfPath, string userPassword, string ownerPassword)
         {
@@ -298,7 +266,7 @@ namespace PassPdf
                     Encoding.UTF8.GetBytes(userPassword),        // Password to open the PDF
                     Encoding.UTF8.GetBytes(ownerPassword),       // Password for permissions
                     EncryptionConstants.ALLOW_PRINTING |         // Set allowed permissions
-                    EncryptionConstants.ALLOW_SCREENREADERS,     
+                    EncryptionConstants.ALLOW_SCREENREADERS,
                     EncryptionConstants.ENCRYPTION_AES_128 |     // Use AES 128-bit encryption
                     EncryptionConstants.DO_NOT_ENCRYPT_METADATA
                 );
@@ -317,35 +285,6 @@ namespace PassPdf
             catch (Exception ex)
             {
                 throw new Exception($"Error protecting PDF: {ex.Message}");
-            }
-        }
-
-        public string[] GetWorksheetNames()
-        {
-            try
-            {
-                using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
-                {
-                    IWorkbook workbook;
-
-                    // Check file extension to use the correct reader
-                    if (Path.GetExtension(filePath).ToLower() == ".xls")
-                        workbook = new HSSFWorkbook(stream);
-                    else
-                        workbook = new XSSFWorkbook(stream);
-
-                    string[] names = new string[workbook.NumberOfSheets];
-                    for (int i = 0; i < workbook.NumberOfSheets; i++)
-                    {
-                        names[i] = workbook.GetSheetName(i);
-                    }
-
-                    return names;
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Error getting worksheet names: {ex.Message}");
             }
         }
     }

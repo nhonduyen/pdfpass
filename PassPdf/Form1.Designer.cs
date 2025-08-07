@@ -120,6 +120,7 @@
             Controls.Add(btnBrowse);
             Name = "Form1";
             Text = "Set Pass";
+            Load += Form1_Load;
             ResumeLayout(false);
             PerformLayout();
         }
