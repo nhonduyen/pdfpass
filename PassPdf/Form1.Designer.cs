@@ -36,7 +36,6 @@
             folderBrowserDialog1 = new FolderBrowserDialog();
             btnBrowseExport = new Button();
             btnExport = new Button();
-            btnSetPass = new Button();
             SuspendLayout();
             // 
             // openFileDialog1
@@ -66,7 +65,7 @@
             txtResult.Multiline = true;
             txtResult.Name = "txtResult";
             txtResult.ScrollBars = ScrollBars.Both;
-            txtResult.Size = new Size(538, 251);
+            txtResult.Size = new Size(758, 251);
             txtResult.TabIndex = 2;
             // 
             // txtExportFolder
@@ -88,30 +87,19 @@
             // 
             // btnExport
             // 
-            btnExport.Location = new Point(587, 21);
+            btnExport.Location = new Point(585, 22);
             btnExport.Name = "btnExport";
-            btnExport.Size = new Size(75, 23);
+            btnExport.Size = new Size(94, 39);
             btnExport.TabIndex = 4;
             btnExport.Text = "Export PDF";
             btnExport.UseVisualStyleBackColor = true;
             btnExport.Click += btnExport_Click;
-            // 
-            // btnSetPass
-            // 
-            btnSetPass.Location = new Point(587, 67);
-            btnSetPass.Name = "btnSetPass";
-            btnSetPass.Size = new Size(107, 23);
-            btnSetPass.TabIndex = 5;
-            btnSetPass.Text = "Set Password";
-            btnSetPass.UseVisualStyleBackColor = true;
-            btnSetPass.Click += btnSetPass_Click;
             // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
-            Controls.Add(btnSetPass);
             Controls.Add(btnExport);
             Controls.Add(btnBrowseExport);
             Controls.Add(txtResult);
@@ -135,6 +123,5 @@
         private FolderBrowserDialog folderBrowserDialog1;
         private Button btnBrowseExport;
         private Button btnExport;
-        private Button btnSetPass;
     }
 }

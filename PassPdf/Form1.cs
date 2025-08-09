@@ -59,19 +59,19 @@
                 }
 
                 var excelManager = new ExcelManager(txtFile.Text);
-                var employeeNames = excelManager.GetEmployeeNames();
-                txtResult.Text = string.Join(Environment.NewLine, employeeNames);
-
+                var employees = excelManager.GetEmployees();
+               
                 int processedCount = 0;
-                foreach (var employee in employeeNames)
+                foreach (var employee in employees)
                 {
                     try
                     {
-                        var pdfPath = Path.Combine(txtExportFolder.Text, $"{employee}.pdf");
-                        excelManager.FillEmployeeName(employee);
+                        var pdfPath = Path.Combine(txtExportFolder.Text, $"{employee.Name}.pdf");
+                        excelManager.FillEmployeeName(employee.VietnameseName);
                         excelManager.PrintExcelSheetToPdf(txtFile.Text, pdfPath);
+                        excelManager.ProtectPdfWithPassword(pdfPath, employee.Password, employee.Password);
                         processedCount++;
-                        txtResult.Text += Environment.NewLine + pdfPath;
+                        txtResult.Text += $"{processedCount}. Export {pdfPath} success - Password: {employee.Password}{Environment.NewLine}";
                     }
                     catch (Exception employeeEx)
                     {
@@ -86,7 +86,7 @@
                     }
                 }
 
-                MessageBox.Show($"Export completed! Processed {processedCount} out of {employeeNames.Count} employees.",
+                MessageBox.Show($"Export completed! Processed {processedCount} out of {employees.Count} employees.",
                                "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)

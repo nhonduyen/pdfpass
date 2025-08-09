@@ -56,26 +56,8 @@ namespace PassPdf
                     cell.CellStyle = existingStyle;
                 }
 
-                // Try to evaluate only safe formulas
-                try
-                {
-                    IFormulaEvaluator evaluator = workbook.GetCreationHelper().CreateFormulaEvaluator();
-
-                    // Force recalculation of the current cell and its dependents
-                    evaluator.NotifySetFormula(cell);
-                    evaluator.EvaluateFormulaCell(cell);
-
-                    // Only evaluate formulas in the current sheet that don't have external references
-                    EvaluateSafeFormulas(evaluator, sheet);
-                    EvaluateSafeFormulas(evaluator, sheetPayroll);
-                    sheet.ForceFormulaRecalculation = true;
-                    sheetPayroll.ForceFormulaRecalculation = true;
-                }
-                catch (Exception evalEx)
-                {
-                    // If evaluation fails, continue without it
-                    Console.WriteLine($"Formula evaluation skipped: {evalEx.Message}");
-                }
+                sheet.ForceFormulaRecalculation = true;
+                sheetPayroll.ForceFormulaRecalculation = true;
 
                 using (var outputStream = new FileStream(filePath, FileMode.Create, FileAccess.Write))
                 {
@@ -98,7 +80,7 @@ namespace PassPdf
                        .Aggregate("", (current, c) => current + c);
         }
 
-        public List<string> GetEmployeeNames()
+        public List<Employee> GetEmployees()
         {
             try
             {
@@ -116,6 +98,7 @@ namespace PassPdf
                         throw new Exception("Payroll sheet not found");
 
                     List<string> columnData = new List<string>();
+                    var employees = new List<Employee>();
                     int currentRow = 11; // Starting from row 12 (0-based index is 11)
 
                     while (true)
@@ -125,59 +108,31 @@ namespace PassPdf
                             break;
 
                         // Get cell from column 2 (0-based index is 1)
-                        ICell cell = row.GetCell(1);
-                        string cellValue = cell?.ToString() ?? string.Empty;
+                        ICell cellName = row.GetCell(1);
+                        ICell cellPw = row.GetCell(41);
+                        string name = cellName.StringCellValue.Trim();
 
                         // Check if we've reached the TOTAL row
-                        if (cellValue.Trim().Equals("TOTAL", StringComparison.OrdinalIgnoreCase))
+                        if (name.Equals("TOTAL", StringComparison.OrdinalIgnoreCase))
                             break;
 
+                        string cellPassword = cellPw.StringCellValue.Trim();
+                        var employee = new Employee(name, ConvertVietnameseName(name), cellPassword);
+                        employees.Add(employee);
+
                         // Add non-empty values to the list
-                        if (!string.IsNullOrWhiteSpace(cellValue))
-                            columnData.Add(cellValue);
+                        if (!string.IsNullOrWhiteSpace(name))
+                            columnData.Add(name);
 
                         currentRow++;
                     }
 
-                    return columnData;
+                    return employees;
                 }
             }
             catch (Exception ex)
             {
                 throw new Exception($"Error reading Payroll data: {ex.Message}");
-            }
-        }
-
-        private void EvaluateSafeFormulas(IFormulaEvaluator evaluator, ISheet sheet)
-        {
-            for (int rowIndex = 0; rowIndex <= sheet.LastRowNum; rowIndex++)
-            {
-                IRow row = sheet.GetRow(rowIndex);
-                if (row == null) continue;
-
-                for (int cellIndex = 0; cellIndex < row.LastCellNum; cellIndex++)
-                {
-                    ICell cell = row.GetCell(cellIndex);
-                    if (cell == null || cell.CellType != CellType.Formula) continue;
-
-                    string formula = cell.CellFormula;
-
-                    // Skip formulas with external references
-                    if (formula.Contains("[") && formula.Contains("]"))
-                    {
-                        continue; // Skip external references
-                    }
-
-                    try
-                    {
-                        evaluator.Evaluate(cell);
-                    }
-                    catch
-                    {
-                        // Skip problematic formulas
-                        continue;
-                    }
-                }
             }
         }
 
@@ -225,9 +180,7 @@ namespace PassPdf
                     Type.Missing
                 );
 
-                // Optional delay for Excel to finish writing the file
-                System.Threading.Thread.Sleep(1000);
-
+           
                 // Verify output
                 if (!File.Exists(outputPdfPath))
                 {
@@ -251,41 +204,54 @@ namespace PassPdf
                 GC.WaitForPendingFinalizers();
             }
         }
-
-
         public void ProtectPdfWithPassword(string pdfPath, string userPassword, string ownerPassword)
         {
+            string tempPath = Path.Combine(
+                Path.GetDirectoryName(pdfPath),
+                Guid.NewGuid() + ".pdf" // unique temp file
+            );
+
             try
             {
-                // Read the existing PDF
-                byte[] pdfBytes = File.ReadAllBytes(pdfPath);
-                string tempPath = Path.Combine(Path.GetDirectoryName(pdfPath), Guid.NewGuid().ToString() + ".pdf");
-
                 WriterProperties writerProperties = new WriterProperties();
                 writerProperties.SetStandardEncryption(
-                    Encoding.UTF8.GetBytes(userPassword),        // Password to open the PDF
-                    Encoding.UTF8.GetBytes(ownerPassword),       // Password for permissions
-                    EncryptionConstants.ALLOW_PRINTING |         // Set allowed permissions
-                    EncryptionConstants.ALLOW_SCREENREADERS,
-                    EncryptionConstants.ENCRYPTION_AES_128 |     // Use AES 128-bit encryption
-                    EncryptionConstants.DO_NOT_ENCRYPT_METADATA
+                    Encoding.UTF8.GetBytes(userPassword),
+                    Encoding.UTF8.GetBytes(ownerPassword),
+                    EncryptionConstants.ALLOW_PRINTING | EncryptionConstants.ALLOW_SCREENREADERS,
+                    EncryptionConstants.ENCRYPTION_AES_128 | EncryptionConstants.DO_NOT_ENCRYPT_METADATA
                 );
 
-                using (var reader = new PdfReader(new MemoryStream(pdfBytes)))
+                // Create encrypted copy in temp folder
+                using (var reader = new PdfReader(pdfPath))
                 using (var writer = new PdfWriter(tempPath, writerProperties))
                 using (var pdfDoc = new PdfDocument(reader, writer))
                 {
                     pdfDoc.Close();
                 }
 
-                // Replace original file with protected version
-                File.Delete(pdfPath);
-                File.Move(tempPath, pdfPath);
+                // Replace the original file with the temp file
+                if (File.Exists(pdfPath))
+                {
+                    File.Replace(tempPath, pdfPath, null);
+                }
+                else
+                {
+                    File.Move(tempPath, pdfPath);
+                }
             }
             catch (Exception ex)
             {
-                throw new Exception($"Error protecting PDF: {ex.Message}");
+                throw new Exception($"Error protecting PDF: {ex.Message}", ex);
+            }
+            finally
+            {
+                // Ensure temp file is deleted even if something failed
+                if (File.Exists(tempPath))
+                {
+                    try { File.Delete(tempPath); } catch { /* ignore */ }
+                }
             }
         }
+
     }
 }
