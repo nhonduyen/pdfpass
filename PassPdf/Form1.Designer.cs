@@ -36,6 +36,8 @@
             folderBrowserDialog1 = new FolderBrowserDialog();
             btnBrowseExport = new Button();
             btnExport = new Button();
+            label1 = new Label();
+            txtPrefix = new TextBox();
             SuspendLayout();
             // 
             // openFileDialog1
@@ -61,7 +63,7 @@
             // 
             // txtResult
             // 
-            txtResult.Location = new Point(12, 118);
+            txtResult.Location = new Point(12, 181);
             txtResult.Multiline = true;
             txtResult.Name = "txtResult";
             txtResult.ScrollBars = ScrollBars.Both;
@@ -95,11 +97,29 @@
             btnExport.UseVisualStyleBackColor = true;
             btnExport.Click += btnExport_Click;
             // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(12, 117);
+            label1.Name = "label1";
+            label1.Size = new Size(91, 15);
+            label1.TabIndex = 5;
+            label1.Text = "File name prefix";
+            // 
+            // txtPrefix
+            // 
+            txtPrefix.Location = new Point(109, 114);
+            txtPrefix.Name = "txtPrefix";
+            txtPrefix.Size = new Size(441, 23);
+            txtPrefix.TabIndex = 6;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(800, 450);
+            ClientSize = new Size(800, 480);
+            Controls.Add(txtPrefix);
+            Controls.Add(label1);
             Controls.Add(btnExport);
             Controls.Add(btnBrowseExport);
             Controls.Add(txtResult);
@@ -107,7 +127,7 @@
             Controls.Add(txtFile);
             Controls.Add(btnBrowse);
             Name = "Form1";
-            Text = "Set Pass";
+            Text = "Payslip";
             Load += Form1_Load;
             ResumeLayout(false);
             PerformLayout();
@@ -123,5 +143,7 @@
         private FolderBrowserDialog folderBrowserDialog1;
         private Button btnBrowseExport;
         private Button btnExport;
+        private Label label1;
+        private TextBox txtPrefix;
     }
 }

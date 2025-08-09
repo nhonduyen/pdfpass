@@ -38,7 +38,7 @@
             }
         }
 
-        private void btnExport_Click(object sender, EventArgs e)
+        private async void btnExport_Click(object sender, EventArgs e)
         {
             try
             {
@@ -59,17 +59,17 @@
                 }
 
                 var excelManager = new ExcelManager(txtFile.Text);
-                var employees = excelManager.GetEmployees();
+                var employees = await excelManager.GetEmployeesAsync();
                
                 int processedCount = 0;
                 foreach (var employee in employees)
                 {
                     try
                     {
-                        var pdfPath = Path.Combine(txtExportFolder.Text, $"{employee.Name}.pdf");
-                        excelManager.FillEmployeeName(employee.VietnameseName);
-                        excelManager.PrintExcelSheetToPdf(txtFile.Text, pdfPath);
-                        excelManager.ProtectPdfWithPassword(pdfPath, employee.Password, employee.Password);
+                        var pdfPath = Path.Combine(txtExportFolder.Text, $"{txtPrefix.Text} - {employee.Name}.pdf");
+                        await excelManager.FillEmployeeNameAsync(employee.VietnameseName);
+                        await excelManager.PrintExcelSheetToPdfAsync(txtFile.Text, pdfPath);
+                        await excelManager.ProtectPdfWithPasswordAsync(pdfPath, employee.Password, employee.Password);
                         processedCount++;
                         txtResult.Text += $"{processedCount}. Export {pdfPath} success - Password: {employee.Password}{Environment.NewLine}";
                     }
