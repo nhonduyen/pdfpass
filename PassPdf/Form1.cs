@@ -66,7 +66,7 @@
                 {
                     try
                     {
-                        var pdfPath = Path.Combine(txtExportFolder.Text, $"{txtPrefix.Text} - {employee.Name}.pdf");
+                        var pdfPath = Path.Combine(txtExportFolder.Text, $"{txtPrefix.Text} - {employee.Name.Replace(" ","")}.pdf");
                         await excelManager.FillEmployeeNameAsync(employee.VietnameseName);
                         await excelManager.PrintExcelSheetToPdfAsync(txtFile.Text, pdfPath);
                         await excelManager.ProtectPdfWithPasswordAsync(pdfPath, employee.Password, employee.Password);
